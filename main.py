@@ -3,8 +3,6 @@ import requests_cache
 from datetime import timedelta
 from bs4 import BeautifulSoup
 import psycopg2
-import pandas as pd
-
 
 requests_cache.install_cache('page_cache', expire_after=timedelta(hours=8))
 response = requests.get('https://erowid.org/experiences/exp.cgi?ShowViews=0&Cellar=0&Start=0&Max=39281')
