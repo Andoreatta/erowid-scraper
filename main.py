@@ -1,5 +1,4 @@
 import asyncio
-from datetime import timedelta
 from bs4 import BeautifulSoup
 import requests
 import httpx
