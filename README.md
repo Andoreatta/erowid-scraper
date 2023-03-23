@@ -4,7 +4,8 @@ For now, its only the basic, I still have to plan the data structure and which i
 
 ### To-do
 - [X] Get all data from each row of the table
-- [ ] Parse all the data from the tables
+- [ ] Parse all the data from the tables from each page
 - [X] Make requests from each experience page (async and concurrent) 
-- [ ] Format the data requested from each page for insertion into a database
+- [ ] Format the data received to Markdown from each page for insertion into a database
 - [ ] Data insertions using psycopg2 to PostgreSQL
+- [ ] Create a tag for each unique substance found

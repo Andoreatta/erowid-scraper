@@ -5,62 +5,86 @@ import httpx
 import random
 
 BASE_URL = 'https://erowid.org/experiences/'
+## it will take more time, but at least I wont be doing some bodged up thing with proxies for requests
 SEMAPHORE_LIMIT = 5
 semaphore = asyncio.Semaphore(SEMAPHORE_LIMIT)
 
-def fetch_experience_links():
+def fetch_experience_uris():
     try:
-        print("Fetching experience links...")
+        print("Fetching experience uris...")
         response = requests.get(f'{BASE_URL}exp.cgi?ShowViews=0&Cellar=0&Start=0&Max=100000')
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
-        print(f"Error while fetching experience links: {e}")
+        print(f"Error while fetching experience uris: {e}")
         return []
 
-    soupParser = BeautifulSoup(response.content, 'html.parser')
-    expRows = soupParser.select('tr[class=""]')
-    experience_links = [row.select('td a')[0].get('href') for row in expRows if row.select('td a')]
-    print(f"Found {len(experience_links)} experience links")
-    return experience_links
+    soup_parser = BeautifulSoup(response.content, 'html.parser')
+    exp_rows = soup_parser.select('tr[class=""]')
+    experience_uris = [row.select('td a')[0].get('href') for row in exp_rows if row.select('td a')]
+    print(f"Found {len(experience_uris)} experience uris")
+    return experience_uris
 
-async def fetch_experience_page(client, link):
+async def fetch_experience_page(client, uri):
     async with semaphore:
         try:
             await asyncio.sleep(random.uniform(2, 5))  
-            response = await client.get(f'{BASE_URL}{link}')
+            response = await client.get(f'{BASE_URL}{uri}')
             response.raise_for_status()
         except httpx.HTTPStatusError as e:
-            print(f"Error while fetching experience page {BASE_URL}{link}  {e}. Status code: {response.status_code}")
-            return (None, link)
+            print(f"Error while fetching experience page {BASE_URL}{uri}  {e}. Status code: {response.status_code}")
+            return (None, uri)
         except httpx.RequestError as e:
-            print(f"Error while sending request to experience page {BASE_URL}{link}  {e}")
-            return (None, link)
+            print(f"Error while sending request to experience page {BASE_URL}{uri}  {e}")
+            return (None, uri)
         except Exception as e:
-            print(f"Unexpected error while fetching experience page {BASE_URL}{link}  {e}")
-            return (None, link)
+            print(f"Unexpected error while fetching experience page {BASE_URL}{uri}  {e}")
+            return (None, uri)
 
-        expPage = BeautifulSoup(response.content, 'html.parser')
-        print(f'Fetched experience page: {BASE_URL}{link}')
-        return (expPage, None)
+        exp_page = BeautifulSoup(response.content, 'html.parser')
+        print('Page content has been parsed successfully')
+        
+        print(f'Fetched and parsed experience page: {BASE_URL}{uri}')
+        return (exp_page, None)
 
-async def fetch_experience_pages(experience_links):
+async def fetch_experience_pages_concurrently(experience_uris):
     async with httpx.AsyncClient() as client:
-        tasks = [fetch_experience_page(client, link) for link in experience_links]
+        tasks = [fetch_experience_page(client, uri) for uri in experience_uris]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        expPages = [result[0] for result in results if result[0] is not None]
-        failed_links = [result[1] for result in results if result[1] is not None]
-    return expPages, failed_links
-    
-async def main():
-    experience_links = fetch_experience_links()
-    if experience_links:
-        print("Fetching experience pages...")
-        experience_pages, failed_links = await fetch_experience_pages(experience_links)
-        print(f"Fetched {len(experience_pages)} experience pages")
-        print(f"{len(failed_links)} links failed, retrying...")
+        # result[0]: page CONTENT or None if the search has failed.
+        # result[1]: page URI which has FAILED to be fetched or None if the search has been successful.
+        exp_pages_content = [result[0] for result in results if result[0] is not None]
+        failed_uris = [result[1] for result in results if result[1] is not None]
+    return exp_pages_content, failed_uris    
 
-        if failed_links:
-            retried_experience_pages, _ = await fetch_experience_pages(failed_links)
+def format_experience_page_content(exp_pages_content):
+    formatted_data = []
+    for exp_page in exp_pages_content:
+        exp_content = exp_page.select('div[class="report-text-surround"]')
+#        exp_report = exp.content.select('')        Finding ways to select it in bodytest.py
+        dose_chart = exp_content[0].select('table[class="dosechart"]') if exp_content else None
+        body_weight = exp_content[0].select('table[class="bodyweight"]') if exp_content else None
+        exp_footer_data = exp_content[0].select('table[class="footdata"]') if exp_content else None
+
+        formatted_info = {
+            'dose_chart': dose_chart[0] if dose_chart else None,
+            'body_weight': body_weight[0] if body_weight else None,
+            'exp_footer_data': exp_footer_data[0] if exp_footer_data else None,
+        }
+
+        formatted_data.append(formatted_info)
+
+    return formatted_data
+
+async def main():
+    experience_uris = fetch_experience_uris()
+    if experience_uris:
+        print("Fetching experience pages...")
+        experience_pages, failed_uris = await fetch_experience_pages_concurrently(experience_uris)
+        print(f"Fetched {len(experience_pages)} experience pages")
+        print(f"{len(failed_uris)} uris failed, retrying...")
+
+        if failed_uris:
+            retried_experience_pages, _ = await fetch_experience_pages_concurrently(failed_uris)
             experience_pages.extend(retried_experience_pages)
             print(f"Fetched {len(retried_experience_pages)} retried experience pages")
     print("--------------------- finished requests ---------------------")
