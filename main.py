@@ -1,5 +1,5 @@
 import asyncio
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Comment
 import requests
 import httpx
 import random
@@ -57,22 +57,26 @@ async def fetch_experience_pages_concurrently(experience_uris):
     return exp_pages_content, failed_uris    
 
 def format_experience_page_content(exp_pages_content):
-    formatted_data = []
+    formatted_data = []   
     for exp_page in exp_pages_content:
-        exp_content = exp_page.select('div[class="report-text-surround"]')
-#        exp_report = exp.content.select('')        Finding ways to select it in bodytest.py
-        dose_chart = exp_content[0].select('table[class="dosechart"]') if exp_content else None
-        body_weight = exp_content[0].select('table[class="bodyweight"]') if exp_content else None
-        exp_footer_data = exp_content[0].select('table[class="footdata"]') if exp_content else None
+        exp_content = exp_page.select_one('div[class"report-text-surround"]')
+        if exp_content:
+            start_comment = exp_content.find(string=lambda string: isinstance(string, Comment) and 'Start Body' in string)
+            end_comment = exp_content.find(string=lambda string: isinstance(string, Comment) and 'End Body' in string)
+            
+            content = start_comment.find_all_next(string=True)
+            page_report = content[:content.index(end_comment)]
+            body_text = ''.join(page_report)
 
-        formatted_info = {
-            'dose_chart': dose_chart[0] if dose_chart else None,
-            'body_weight': body_weight[0] if body_weight else None,
-            'exp_footer_data': exp_footer_data[0] if exp_footer_data else None,
-        }
+            formatted_info = {
+                'body_text': body_text,
+                'dose_chart': exp_content.select_one('table=[class="dosechart"]'),
+                'body_weight': exp_content.select_one('table=[class="bodyweight"]'),
+                'exp_footer_data': exp_content.select_one('table=[class="footdata"]'),
+            }
 
         formatted_data.append(formatted_info)
-
+    print('Data has been formatted and saved dict')
     return formatted_data
 
 async def main():
