@@ -61,9 +61,10 @@ def format_experience_page_content(exp_pages_content):
     for exp_page in exp_pages_content:
         exp_content = exp_page.select_one('div[class"report-text-surround"]')
         if exp_content:
+            # the anonymous function is executed for each string iterated to check if it contains 'Start Body', might be slow, will test in the future.
             start_comment = exp_content.find(string=lambda string: isinstance(string, Comment) and 'Start Body' in string)
             end_comment = exp_content.find(string=lambda string: isinstance(string, Comment) and 'End Body' in string)
-            
+            # string=True is only to return text and nothing else
             content = start_comment.find_all_next(string=True)
             page_report = content[:content.index(end_comment)]
             body_text = ''.join(page_report)
@@ -76,7 +77,7 @@ def format_experience_page_content(exp_pages_content):
             }
 
         formatted_data.append(formatted_info)
-    print('Data has been formatted and saved dict')
+    print('Data has been formatted and saved to dict')
     return formatted_data
 
 async def main():
