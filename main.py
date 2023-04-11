@@ -68,12 +68,13 @@ def format_experience_page_content(exp_pages_content):
             content = start_comment.find_all_next(string=True)
             page_report = content[:content.index(end_comment)]
             body_text = ''.join(page_report)
+            trs = exp_content.select('table=[class="footdata"] > td > tr')
 
             formatted_info = {
                 'body_text': body_text,
                 'dose_chart': exp_content.select_one('table=[class="dosechart"]'),
                 'body_weight': exp_content.select_one('table=[class="bodyweight"]'),
-                'exp_footer_data': exp_content.select_one('table=[class="footdata"]'),
+                'exp_footer_data': [trs[0],trs[2]],
             }
 
         formatted_data.append(formatted_info)
