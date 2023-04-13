@@ -6,8 +6,8 @@ import random
 
 BASE_URL = 'https://erowid.org/experiences/'
 ## it will take more time, but at least I wont be doing some bodged up thing with proxies for requests
-SEMAPHORE_LIMIT = 5
-semaphore = asyncio.Semaphore(SEMAPHORE_LIMIT)
+contents = set()
+
 
 def fetch_experience_uris():
     try:
@@ -24,7 +24,8 @@ def fetch_experience_uris():
     print(f"Found {len(experience_uris)} experience uris")
     return experience_uris
 
-async def fetch_experience_page(client, uri):
+async def fetch_experience_page(client, uri, semaphore):
+
     async with semaphore:
         try:
             await asyncio.sleep(random.uniform(2, 5))  
@@ -37,7 +38,7 @@ async def fetch_experience_page(client, uri):
             print(f"Error while fetching experience page {BASE_URL}{uri}  {e}. Status code: {response.status_code}")
             return (None, uri)
         except httpx.RequestError as e:
-            print(f"Error while sending request to experience page {BASE_URL}{uri}  {e}")
+            print(f"Error while sending request to experience page {BASE_URL}{uri}  {e.with_traceback}")
             return (None, uri)
         except Exception as e:
             print(f"Unexpected error while fetching experience page {BASE_URL}{uri}  {e}")
@@ -49,9 +50,9 @@ async def fetch_experience_page(client, uri):
         print(f'Fetched and parsed experience page: {BASE_URL}{uri}')
         return (exp_page, None)
 
-async def fetch_experience_pages_concurrently(experience_uris):
+async def fetch_experience_pages_concurrently(experience_uris, sem):
     async with httpx.AsyncClient() as client:
-        tasks = [fetch_experience_page(client, uri) for uri in experience_uris]
+        tasks = [fetch_experience_page(client, uri,sem) for uri in experience_uris]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         # result[0]: page CONTENT or None if the search has failed.
         # result[1]: page URI which has FAILED to be fetched or None if the search has been successful.
@@ -104,10 +105,11 @@ async def main():
     experience_uris = fetch_experience_uris()
 
     contents = set()
-
+    SEMAPHORE_LIMIT = 5
+    semaphore = asyncio.Semaphore(SEMAPHORE_LIMIT)
     if experience_uris:
         print("Fetching experience pages...")
-        experience_pages, failed_uris = await fetch_experience_pages_concurrently(experience_uris)
+        experience_pages, failed_uris = await fetch_experience_pages_concurrently(experience_uris, semaphore)
         print(f"Fetched {len(experience_pages)} experience pages")
         print(f"{len(failed_uris)} uris failed, retrying...")
 
@@ -118,11 +120,11 @@ async def main():
         if failed_uris:
             retried_experience_pages, _ = await fetch_experience_pages_concurrently(failed_uris)
             experience_pages.extend(retried_experience_pages)
-            {contents.add(page) for page in experience_pages }
             print(f"Fetched {len(retried_experience_pages)} retried experience pages")
     
 
     print("--------------------- finished requests ---------------------")
-    return contents
 
 asyncio.run(main())
+form = format_experience_page_content(contents)
+print(form)
