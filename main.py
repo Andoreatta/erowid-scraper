@@ -4,6 +4,10 @@ import requests
 import httpx
 import random
 
+#Semaphore initiated outside of asyncio.run() grabs the asyncio 
+# "default" loop and so cannot be used with the event loop created with asyncio.run().
+#so i initiated semaphore from main
+
 BASE_URL = 'https://erowid.org/experiences/'
 ## it will take more time, but at least I wont be doing some bodged up thing with proxies for requests
 contents = set()
@@ -56,6 +60,7 @@ async def fetch_experience_pages_concurrently(experience_uris, sem):
         results = await asyncio.gather(*tasks, return_exceptions=True)
         # result[0]: page CONTENT or None if the search has failed.
         # result[1]: page URI which has FAILED to be fetched or None if the search has been successful.
+        ##[result[0] for result in results if result[0] is not None] TypeError: 'RuntimeError' object is not subscriptable--semaphore problem--
         exp_pages_content = [result[0] for result in results if result[0] is not None]
         failed_uris = [result[1] for result in results if result[1] is not None]
     return exp_pages_content, failed_uris    
