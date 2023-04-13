@@ -30,6 +30,9 @@ async def fetch_experience_page(client, uri):
             await asyncio.sleep(random.uniform(2, 5))  
             response = await client.get(f'{BASE_URL}{uri}')
             response.raise_for_status()
+        except asyncio.SendfileNotAvailableError as e:
+            print(f"Unexpected error while fetching experience page {BASE_URL}{uri}  {e}")
+            return (None, uri)
         except httpx.HTTPStatusError as e:
             print(f"Error while fetching experience page {BASE_URL}{uri}  {e}. Status code: {response.status_code}")
             return (None, uri)
@@ -65,16 +68,32 @@ def format_experience_page_content(exp_pages_content):
             start_comment = exp_content.find(string=lambda string: isinstance(string, Comment) and 'Start Body' in string)
             end_comment = exp_content.find(string=lambda string: isinstance(string, Comment) and 'End Body' in string)
             # string=True is only to return text and nothing else
+            author = exp_page.select('div.author>a')
             content = start_comment.find_all_next(string=True)
             page_report = content[:content.index(end_comment)]
             body_text = ''.join(page_report)
-            trs = exp_content.select('table=[class="footdata"] > td > tr')
+            trs = exp_content.select('table[class="footdata"] > tr ')
+
+
+            author_dict={
+                'username':author[0].text,
+                'gender':trs[1].text[trs[1].index(":")+1:].strip(),
+                
+            }
+
+            exp_dict={
+                'title':exp_page.select_one('.title').text,
+                'body_text': body_text.text,
+                'body_weight': int(exp_content.select_one('table=[class="bodyweight"]').text),
+                'age':int(trs[2].text[trs[2].index(":")+1:].strip()),
+                'exp_year':int(trs[0].text[trs[0].index(":")+1:trs[0].index("ExpID")]),
+                'pub_date':trs[3].text[trs[3].index(":")+1:trs[3].index("Views")]
+            }
+
 
             formatted_info = {
-                'body_text': body_text,
-                'dose_chart': exp_content.select_one('table=[class="dosechart"]'),
-                'body_weight': exp_content.select_one('table=[class="bodyweight"]'),
-                'exp_footer_data': [trs[0],trs[2]],
+                'author':author_dict,
+                'exp':exp_dict
             }
 
         formatted_data.append(formatted_info)
@@ -83,16 +102,27 @@ def format_experience_page_content(exp_pages_content):
 
 async def main():
     experience_uris = fetch_experience_uris()
+
+    contents = set()
+
     if experience_uris:
         print("Fetching experience pages...")
         experience_pages, failed_uris = await fetch_experience_pages_concurrently(experience_uris)
         print(f"Fetched {len(experience_pages)} experience pages")
         print(f"{len(failed_uris)} uris failed, retrying...")
 
+        {contents.add(page) for page in experience_pages }
+
+
+
         if failed_uris:
             retried_experience_pages, _ = await fetch_experience_pages_concurrently(failed_uris)
             experience_pages.extend(retried_experience_pages)
+            {contents.add(page) for page in experience_pages }
             print(f"Fetched {len(retried_experience_pages)} retried experience pages")
-    print("--------------------- finished requests ---------------------")
     
+
+    print("--------------------- finished requests ---------------------")
+    return contents
+
 asyncio.run(main())
