@@ -1,5 +1,6 @@
 CREATE DATABASE neowid;
 
+
 CREATE TABLE author (
     author_id SERIAL PRIMARY KEY,
     username VARCHAR(128),
